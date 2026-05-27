@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>挺豪餐廳 - 綜合客席管理面板</title>
+    <title>挺豪餐廳 - 客席控制台</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script type="importmap">
       {
@@ -14,59 +14,58 @@
       }
     </script>
     <style>
-        body { font-family: system-ui, sans-serif; background-color: #edf2f7; padding: 15px; margin: 0; }
-        h1 { text-align: center; color: #2d3748; font-size: 1.5rem; margin-bottom: 20px; }
-        .box { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; }
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f6f9; padding: 15px; margin: 0; color: #333; }
+        .title { text-align: center; color: #1a202c; font-size: 1.4rem; font-weight: bold; margin-bottom: 20px; letter-spacing: 1px; }
+        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); text-align: center; }
         
-        button { width: 100%; padding: 14px; font-size: 1.1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; color: white; margin-top: 10px; }
-        .btn-scan { background-color: #3182ce; }
-        .btn-action-in { background-color: #48bb78; }
-        .btn-action-out { background-color: #e53e3e; }
+        button { width: 100%; padding: 14px; font-size: 1.05rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: background 0.1s; }
+        .btn-blue { background-color: #2b6cb0; color: white; }
+        .btn-green { background-color: #2f855a; color: white; margin-top: 15px; }
+        .btn-red { background-color: #c53030; color: white; margin-top: 15px; }
         
-        #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; border-radius: 8px; overflow: hidden; display: none; }
-        .info-row { margin-bottom: 15px; }
-        .lbl { font-size: 0.9rem; color: #718096; text-transform: uppercase; margin-bottom: 3px; }
-        .val { font-size: 1.8rem; font-weight: bold; color: #1a202c; font-family: monospace; }
-        .badge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; }
-        .bg-waiting { background: #feebc8; color: #c05621; }
-        .bg-dining { background: #fed7d7; color: #9b2c2c; }
+        #reader { width: 100%; max-width: 340px; margin: 0 auto 15px auto; border-radius: 8px; overflow: hidden; display: none; }
+        
+        /* 掃描結果顯示區域 */
+        .info-title { font-size: 0.85rem; color: #718096; margin-top: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .info-value { font-size: 2.2rem; font-weight: 700; color: #2b6cb0; font-family: monospace; margin-top: 2px; }
+        
+        /* 🔥 實時限時倒數大數字 */
+        .timer-box { font-size: 3rem; font-weight: 700; color: #e53e3e; font-family: monospace; background: #fff5f5; border: 1px solid #feb2b2; padding: 10px 0; border-radius: 8px; margin-top: 5px; }
+        
+        .badge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; margin-top: 5px; }
+        .status-wait { background: #feebc8; color: #c05621; }
+        .status-dine { background: #fed7d7; color: #9b2c2c; }
     </style>
 </head>
 <body>
 
-    <h1>挺豪餐廳 - 綜合客席掃碼端</h1>
+    <div class="title">客席掃碼管理台</div>
 
-    <div class="box">
+    <div class="card">
         <div id="reader"></div>
-        <button class="btn-scan" id="scanBtn" onclick="toggleScanner()">開啟相機掃描顧客</button>
+        <button class="btn-blue" id="scanBtn" onclick="toggleCamera()">開啟鏡頭掃描顧客 QR</button>
     </div>
 
-    <div class="box" id="resultBox" style="display: none;">
+    <div class="card" id="resultCard" style="display: none;">
         
-        <div class="info-row">
-            <div class="lbl">顧客排隊號碼</div>
-            <div class="val" id="custTicket" style="color: #3182ce;">---</div>
-        </div>
+        <div class="info-title">顧客用餐號碼</div>
+        <div class="info-value" id="resTicket">---</div>
 
-        <div class="info-row">
-            <div class="lbl">登記到訪人數</div>
-            <div class="val" id="custGuests" style="font-size: 1.4rem;">- 人</div>
-        </div>
+        <div class="info-title">即時剩餘用餐時間</div>
+        <div class="timer-box" id="resTimer">90:00</div>
+
+        <div class="info-title">目前狀態</div>
+        <div><span class="badge" id="resBadge">---</span></div>
         
-        <div class="info-row">
-            <div class="lbl">當前狀態</div>
-            <div style="margin-top: 5px;">
-                <span class="badge" id="statusBadge">---</span>
-            </div>
-        </div>
+        <div class="info-title" style="margin-top: 10px;">到訪人數</div>
+        <div style="font-size: 1.1rem; font-weight: bold;" id="resGuests">- 人</div>
 
-        <div id="ctrlArea" style="margin-top: 25px;">
-            </div>
+        <div id="actionBtnArea"></div>
     </div>
 
     <script type="module">
         import { initializeApp } from "firebase/app";
-        import { getDatabase, ref, set, get } from "firebase/database";
+        import { getDatabase, ref, set, onValue } from "firebase/database";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDwUF4-rBRG9QGyti2_Smx_PRZ8sZOZL0A",
@@ -81,93 +80,144 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        let scannerInstance = null;
+        let html5Qr = null;
         let activeUID = null;
+        let staffTimerInterval = null;
+        let liveListener = null;
 
-        window.toggleScanner = function() {
+        window.toggleCamera = function() {
             const readerDiv = document.getElementById('reader');
             const btn = document.getElementById('scanBtn');
-
-            if (scannerInstance && scannerInstance.isScanning) {
-                scannerInstance.stop().then(() => {
-                    readerDiv.style.display = 'none';
-                    btn.innerText = "開啟相機掃描顧客";
+            
+            if (html5Qr && html5Qr.isScanning) {
+                html5Qr.stop().then(() => { 
+                    readerDiv.style.display = 'none'; 
+                    btn.innerText = "開啟鏡頭掃描顧客 QR"; 
                 });
             } else {
-                readerDiv.style.display = 'block';
-                btn.innerText = "關閉相機鏡頭";
-                if(!scannerInstance) scannerInstance = new Html5Qrcode("reader");
+                readerDiv.style.display = 'block'; 
+                btn.innerText = "關閉鏡頭";
                 
-                scannerInstance.start(
-                    { facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanDone
-                ).catch(() => {
-                    alert("請開啟瀏覽器相機使用權限。");
-                    readerDiv.style.display = 'none';
-                    btn.innerText = "開啟相機掃描顧客";
+                if(!html5Qr) html5Qr = new Html5Qrcode("reader");
+                
+                html5Qr.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess).catch(()=>{
+                    alert("請核准瀏覽器相機權限。"); 
+                    readerDiv.style.display = 'none'; 
+                    btn.innerText = "開啟鏡頭掃描顧客 QR";
                 });
             }
         };
 
-        // 🟢 掃描成功：解碼出客人的專屬 UID
-        function onScanDone(decodedText) {
-            toggleScanner(); // 關閉相機
-            activeUID = decodedText;
+        // 🟢 鏡頭掃描二維碼成功
+        function onScanSuccess(uid) {
+            toggleCamera(); // 關閉相機
+            activeUID = uid;
 
-            // 讀取該 UID 在雲端的即時排隊與入座資料
+            // 如果之前有監聽或計時器，先清除
+            if (liveListener) liveListener(); 
+            clearInterval(staffTimerInterval);
+
             const nodeRef = ref(db, `comboSystem/${activeUID}`);
-            get(nodeRef).then((snapshot) => {
-                const data = snapshot.val();
-                if (!data) {
-                    alert("此二維碼無效或已被重置，請讓顧客重新在手機選人數。");
-                    return;
+            
+            // 實時監聽該客人的雲端數據
+            liveListener = onValue(nodeRef, (snap) => {
+                const data = snap.val();
+                if (!data) { 
+                    document.getElementById('resultCard').style.display = 'none';
+                    clearInterval(staffTimerInterval);
+                    return; 
                 }
-
-                document.getElementById('resultBox').style.display = 'block';
-                document.getElementById('custTicket').innerText = data.ticketNumber;
-                document.getElementById('custGuests').innerText = data.guestsCount + " 人";
                 
-                const badge = document.getElementById('statusBadge');
-                const ctrl = document.getElementById('ctrlArea');
-
+                // 顯示掃描結果面板
+                document.getElementById('resultCard').style.display = 'block';
+                
+                // 1. 放入用餐號碼
+                document.getElementById('resTicket').innerText = data.ticketNumber;
+                document.getElementById('resGuests').innerText = data.guestsCount + " 人";
+                
+                const b = document.getElementById('resBadge');
+                const btnArea = document.getElementById('actionBtnArea');
+                const timerBox = document.getElementById('resTimer');
+                
+                // 2. 判斷狀態並放入對應的即時倒數與按鈕
                 if (data.status === "waiting") {
-                    badge.innerText = "排隊候位中";
-                    badge.className = "badge bg-waiting";
-                    ctrl.innerHTML = `<button class="btn-action-in" onclick="clickEnter()">確認顧客入座 (啟動1.5小時限時)</button>`;
-                } else if (data.status === "dining") {
-                    badge.innerText = "用餐中 / 計時中";
-                    badge.className = "badge bg-dining";
-                    ctrl.innerHTML = `<button class="btn-action-out" onclick="clickLeave()">確認客人已離開 (重置網頁)</button>`;
+                    b.innerText = "候位排隊中"; 
+                    b.className = "badge status-wait";
+                    timerBox.innerText = "90:00 (未開始)";
+                    timerBox.style.color = "#a0aec0";
+                    timerBox.style.background = "#edf2f7";
+                    timerBox.style.borderColor = "#cbd5e0";
+                    
+                    btnArea.innerHTML = `<button class="btn-green" onclick="submitIn()">確認安排入座 (啟動計時)</button>`;
+                    clearInterval(staffTimerInterval);
+                } 
+                else if (data.status === "dining") {
+                    b.innerText = "正在用餐中"; 
+                    b.className = "badge status-dine";
+                    timerBox.style.color = "#e53e3e";
+                    timerBox.style.background = "#fff5f5";
+                    timerBox.style.borderColor = "#feb2b2";
+                    
+                    btnArea.innerHTML = `<button class="btn-red" onclick="submitOut()">確認用餐完畢離開 (重置顧客手機)</button>`;
+                    
+                    // 🟢 開啟實時倒數計時器（限時 1.5 小時）
+                    startStaffLiveClock(data.startTime);
                 }
             });
         }
 
-        // 店員點擊確認入座
-        window.clickEnter = function() {
+        // 店員控制端：獨立運作的實時時間倒數顯示（90分鐘）
+        function startStaffLiveClock(startTime) {
+            clearInterval(staffTimerInterval);
+            const totalSec = 90 * 60;
+            const timerBox = document.getElementById('resTimer');
+
+            function update() {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const remain = totalSec - elapsed;
+                
+                if (remain <= 0) {
+                    timerBox.innerText = "時間到 / 已超時";
+                    clearInterval(staffTimerInterval);
+                } else {
+                    const m = Math.floor(remain / 60);
+                    const s = remain % 60;
+                    timerBox.innerText = String(m).padStart(2,'0') + ":" + String(s).padStart(2,'0');
+                }
+            }
+            update();
+            staffTimerInterval = setInterval(update, 1000);
+        }
+
+        // 按鈕：確認入座
+        window.submitIn = function() {
             if (!activeUID) return;
-            // 保持號碼與人數不變，僅將狀態切換為 dining，並注入計時起點
             const nodeRef = ref(db, `comboSystem/${activeUID}`);
-            get(nodeRef).then(snap => {
-                const currentData = snap.val();
-                set(nodeRef, {
-                    ...currentData,
-                    status: "dining",
-                    startTime: Date.now()
-                }).then(() => {
-                    alert("已確認入座，顧客端網頁已實時切換為限時倒數。");
-                    document.getElementById('resultBox').style.display = 'none';
-                });
+            
+            // 獲取當前節點數據，將狀態改為 dining 並寫入 startTime
+            set(nodeRef, {
+                status: "dining",
+                ticketNumber: document.getElementById('resTicket').innerText,
+                guestsCount: parseInt(document.getElementById('resGuests').innerText),
+                startTime: Date.now()
+            }).then(() => {
+                alert("已確認入座！店員與顧客端已同步開始計時。");
             });
         };
 
-        // 店員點擊確認離開 (重置顧客網頁)
-        window.clickLeave = function() {
+        // 按鈕：確認離開
+        window.submitOut = function() {
             if (!activeUID) return;
-            const nodeRef = ref(db, `comboSystem/${activeUID}`);
-            // 直接拔除雲端此 UID 的節點
-            set(nodeRef, null).then(() => {
-                alert("已完成離店重置，顧客手機已自動恢復至人數選擇初始狀態。");
-                document.getElementById('resultBox').style.display = 'none';
-            });
+            if (confirm("確認該桌顧客用餐完畢並離開餐廳嗎？")) {
+                const nodeRef = ref(db, `comboSystem/${activeUID}`);
+                clearInterval(staffTimerInterval);
+                
+                // 清空雲端此節點 ➡️ 觸發連動，顧客手機跳轉 10 秒感謝語並自動洗白
+                set(nodeRef, null).then(() => {
+                    alert("客席重置成功。");
+                    document.getElementById('resultCard').style.display = 'none';
+                });
+            }
         };
     </script>
 </body>
