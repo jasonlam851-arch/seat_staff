@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>挺豪餐廳 - 自動客席控制台</title>
+    <title>挺豪餐廳 - 綜合工作面板</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script type="importmap">
       {
@@ -14,36 +14,57 @@
       }
     </script>
     <style>
-        body { font-family: system-ui, sans-serif; background-color: #f4f6f9; padding: 15px; margin: 0; color: #333; }
-        .title { text-align: center; color: #1a202c; font-size: 1.4rem; font-weight: bold; margin-bottom: 20px; }
-        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); text-align: center; }
-        button { width: 100%; padding: 14px; font-size: 1.05rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
-        .btn-blue { background-color: #2b6cb0; color: white; }
+        body { font-family: system-ui, sans-serif; background-color: #f1f5f9; padding: 0; margin: 0; color: #334155; }
+        
+        /* 導航分頁欄 */
+        .tab-bar { display: flex; background: #1e293b; position: sticky; top: 0; z-index: 100; }
+        .tab-btn { flex: 1; padding: 16px; text-align: center; color: #94a3b8; font-weight: bold; border: none; background: transparent; cursor: pointer; font-size: 1rem; }
+        .tab-btn.active { color: white; border-bottom: 3px solid #3b82f6; background: #0f172a; }
+        
+        .page-content { padding: 15px; display: none; }
+        .page-content.active { display: block; }
+        
+        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center; }
+        button.btn-blue { width: 100%; padding: 14px; font-size: 1.05rem; font-weight: bold; border: none; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; }
         #reader { width: 100%; max-width: 340px; margin: 0 auto 15px auto; border-radius: 8px; overflow: hidden; display: none; }
-        .info-title { font-size: 0.85rem; color: #718096; margin-top: 15px; text-transform: uppercase; }
-        .info-value { font-size: 2.2rem; font-weight: 700; color: #2b6cb0; font-family: monospace; }
-        .timer-box { font-size: 3rem; font-weight: 700; color: #e53e3e; font-family: monospace; background: #fff5f5; border: 1px solid #feb2b2; padding: 10px 0; border-radius: 8px; margin-top: 5px; }
-        .alert-toast { background: #2f855a; color: white; padding: 12px; border-radius: 8px; font-weight: bold; margin-top: 15px; display: none; }
+        
+        .alert-toast { padding: 14px; border-radius: 8px; font-weight: bold; margin-top: 15px; text-align: center; color: white; }
+        
+        /* 頁面二：客席監控網格 */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 10px; }
+        .monitor-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; text-align: center; position: relative; }
+        .m-num { font-size: 1.8rem; font-weight: bold; color: #1e293b; font-family: monospace; }
+        .m-timer { font-size: 1.4rem; font-weight: bold; color: #ef4444; font-family: monospace; margin: 5px 0; }
+        .btn-kick { width: 100%; padding: 6px; font-size: 0.8rem; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 6px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="title">客席智能掃碼台 (全自動)</div>
-
-    <div class="card">
-        <div id="reader"></div>
-        <button class="btn-blue" id="scanBtn" onclick="toggleCamera()">開啟鏡頭掃描顧客 QR</button>
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchPage(1)">分頁一：二維碼掃描</button>
+        <button class="tab-btn" onclick="switchPage(2)">分頁二：查看即時客席</button>
     </div>
 
-    <div class="card" id="resultCard" style="display: none;">
-        <div class="info-title">處理顧客號碼</div>
-        <div class="val-block" id="resTicket" style="font-size: 2.5rem; font-weight: bold; color: #2b6cb0;">---</div>
-        <div id="toastMsg" class="alert-toast"></div>
+    <div class="page-content active" id="page1">
+        <div class="card">
+            <div id="reader"></div>
+            <button class="btn-blue" id="scanBtn" onclick="toggleCamera()">開啟鏡頭掃描顧客 QR</button>
+        </div>
+        <div class="card" id="scanResultCard" style="display: none;">
+            <div style="font-size: 0.9rem; color: #64748b;">處理顧客號碼</div>
+            <div id="resTicket" style="font-size: 2.8rem; font-weight: bold; color: #1e293b; font-family: monospace;">---</div>
+            <div id="toastMsg" class="alert-toast"></div>
+        </div>
+    </div>
+
+    <div class="page-content" id="page2">
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 0.9rem; color: #64748b;">當前現場用餐狀態：</div>
+        <div class="grid" id="monitorGrid"></div>
     </div>
 
     <script type="module">
         import { initializeApp } from "firebase/app";
-        import { getDatabase, ref, set, get, serverTimestamp } from "firebase/database";
+        import { getDatabase, ref, set, get, onValue, serverTimestamp } from "firebase/database";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDwUF4-rBRG9QGyti2_Smx_PRZ8sZOZL0A",
@@ -58,7 +79,17 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         let html5Qr = null;
+        let serverOffset = 0;
+        let activeTimers = [];
 
+        onValue(ref(db, ".info/serverTimeOffset"), (snapshot) => { serverOffset = snapshot.val() || 0; });
+
+        window.switchPage = function(pageNum) {
+            document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === pageNum - 1));
+            document.querySelectorAll('.page-content').forEach((p, i) => p.classList.toggle('active', i === pageNum - 1));
+        };
+
+        // 鏡頭開關
         window.toggleCamera = function() {
             const readerDiv = document.getElementById('reader');
             const btn = document.getElementById('scanBtn');
@@ -73,40 +104,93 @@
             }
         };
 
-        // 🟢 核心全自動識別邏輯
+        // 🟢 頁面一：掃碼邏輯 (內置嚴格防偷跑限制)
         function onScanSuccess(uid) {
-            toggleCamera(); // 自動關相機
+            toggleCamera();
+            const comboRef = ref(db, `comboSystem/${uid}`);
             
-            const nodeRef = ref(db, `comboSystem/${uid}`);
-            get(nodeRef).then((snap) => {
-                const data = snap.val();
-                if (!data) { alert("此二維碼已失效或客人已取消排隊。"); return; }
+            get(ref(db)).then((snapshot) => {
+                const root = snapshot.val() || {};
+                const data = root.comboSystem?.[uid];
+                const queueData = root.queueSystem || {};
 
-                document.getElementById('resultCard').style.display = 'block';
+                if (!data) { alert("此二維碼無效。"); return; }
+
+                document.getElementById('scanResultCard').style.display = 'block';
                 document.getElementById('resTicket').innerText = data.ticketNumber;
                 const toast = document.getElementById('toastMsg');
-                toast.style.display = 'block';
 
                 if (data.status === "waiting") {
-                    // 👉 第一次掃描：自動將其改為用餐中，並使用 serverTimestamp 確保絕對同步
-                    set(nodeRef, {
-                        ...data,
-                        status: "dining",
-                        startTime: serverTimestamp() // 使用 Firebase 伺服器時間
-                    }).then(() => {
-                        toast.innerText = "成功：已自動安排入座，倒數計時開始！";
-                        toast.style.backgroundColor = "#2f855a";
-                    });
+                    // 👉 驗證是否已被大廳叫號
+                    const myGroup = data.ticketNumber.substring(0, 1);
+                    const myNum = parseInt(data.ticketNumber.substring(1));
+                    const currentCalled = queueData[myGroup]?.currentCalled || 0;
+
+                    if (currentCalled !== myNum) {
+                        // 🔥 叫號進度不符，直接阻擋入座
+                        toast.innerText = "拒絕入座：該號碼尚未被叫號，無法啟用用餐！";
+                        toast.style.backgroundColor = "#ef4444";
+                    } else {
+                        // 通過，自動入座
+                        set(comboRef, { ...data, status: "dining", startTime: serverTimestamp() }).then(() => {
+                            toast.innerText = "成功：已自動安排入座，開始同步計時！";
+                            toast.style.backgroundColor = "#16a34a";
+                        });
+                    }
                 } 
                 else if (data.status === "dining") {
-                    // 👉 第二次掃描：發現已經在吃了，直接一鍵自動離店洗白
-                    set(nodeRef, null).then(() => {
-                        toast.innerText = "成功：顧客已用餐完畢離開，網頁已重置！";
-                        toast.style.backgroundColor = "#c53030";
+                    // 👉 離開餐廳，一秒洗白
+                    set(comboRef, null).then(() => {
+                        toast.innerText = "成功：已完成離店，顧客網頁已洗白重置。";
+                        toast.style.backgroundColor = "#dc2626";
                     });
                 }
             });
         }
+
+        // 🔵 頁面二：實時監控面板同步機制 (網頁刷新絕對不掉資料)
+        onValue(ref(db, 'comboSystem'), (snapshot) => {
+            activeTimers.forEach(t => clearInterval(t)); activeTimers = [];
+            const grid = document.getElementById('monitorGrid');
+            grid.innerHTML = '';
+            
+            const combo = snapshot.val() || {};
+            Object.keys(combo).forEach(uid => {
+                const item = combo[uid];
+                if (item.status === "dining") {
+                    const card = document.createElement('div');
+                    card.className = 'monitor-card';
+                    card.innerHTML = `
+                        <div class="m-num">${item.ticketNumber}</div>
+                        <div style="font-size:0.75rem; color:#64748b;">人數: ${item.guestsCount}人</div>
+                        <div class="m-timer" id="st_${uid}">90:00</div>
+                        <button class="btn-kick" onclick="forceCheckout('${uid}')">辦理結帳退檯</button>
+                    `;
+                    grid.appendChild(card);
+                    setupLiveTimer(uid, item.startTime);
+                }
+            });
+        });
+
+        function setupLiveTimer(uid, startTime) {
+            const el = document.getElementById(`st_${uid}`);
+            function update() {
+                const remain = (90 * 60) - Math.floor(((Date.now() + serverOffset) - startTime) / 1000);
+                if (remain <= 0) { if(el) el.innerText = "時滿"; }
+                else {
+                    const m = Math.floor(remain / 60); const s = remain % 60;
+                    if(el) el.innerText = String(m).padStart(2,'0') + ":" + String(s).padStart(2,'0');
+                }
+            }
+            update();
+            activeTimers.push(setInterval(update, 1000));
+        }
+
+        window.forceCheckout = function(uid) {
+            if (confirm("確定要在後台將該桌號辦理退檯嗎？")) {
+                set(ref(db, `comboSystem/${uid}`), null);
+            }
+        };
     </script>
 </body>
 </html>
