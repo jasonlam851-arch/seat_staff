@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>挺豪餐廳 - 客席管理端</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+          "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js"
+        }
+      }
+    </script>
+    <style>
+        body { font-family: system-ui, sans-serif; background-color: #edf2f7; padding: 15px; margin: 0; }
+        h1 { text-align: center; color: #2d3748; font-size: 1.5rem; margin-bottom: 20px; letter-spacing: 1px; }
+        .box { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; }
+        
+        button { width: 100%; padding: 14px; font-size: 1.1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; color: white; margin-top: 10px; }
+        .btn-scan { background-color: #3182ce; }
+        .btn-action-in { background-color: #48bb78; }
+        .btn-action-out { background-color: #e53e3e; }
+        
+        #reader { width: 100%; max-width: 350px; margin: 0 auto 15px auto; border-radius: 8px; overflow: hidden; display: none; }
+        .result-title { font-size: 0.9rem; color: #718096; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        .result-uid { font-size: 1.4rem; font-weight: bold; color: #1a202c; word-break: break-all; font-family: monospace; margin-bottom: 15px; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; margin-bottom: 20px; }
+        .status-none { background: #e2e8f0; color: #4a5568; }
+        .status-dining { background: #fed7d7; color: #9b2c2c; }
+    </style>
+</head>
+<body>
+
+    <h1>客席時限管理面板</h1>
+
+    <div class="box">
+        <div id="reader"></div>
+        <button class="btn-scan" id="scanToggleBtn" onclick="toggleScanner()">開啟相機鏡頭</button>
+    </div>
+
+    <div class="box" id="resultBox" style="display: none;">
+        <div class="result-title">已掃描顧客專屬識別碼</div>
+        <div class="result-uid" id="targetUID">---</div>
+        
+        <div class="result-title">目前狀態</div>
+        <div>
+            <span class="status-badge status-none" id="statusTxt">未入座 / 空閒</span>
+        </div>
+
+        <div id="actionArea">
+            </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "firebase/app";
+        import { getDatabase, ref, set, get } from "firebase/database";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDwUF4-rBRG9QGyti2_Smx_PRZ8sZOZL0A",
+            authDomain: "my-queue-system-3bcc5.firebaseapp.com",
+            databaseURL: "https://my-queue-system-3bcc5-default-rtdb.firebaseio.com",
+            projectId: "my-queue-system-3bcc5",
+            storageBucket: "my-queue-system-3bcc5.firebasestorage.app",
+            messagingSenderId: "32354532851",
+            appId: "1:32354532851:web:4ba48fcc31bb454399a686"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let html5QrcodeScanner = null;
+        let currentScannedUID = null;
+
+        // 開啟/關閉相機控制
+        window.toggleScanner = function() {
+            const readerDiv = document.getElementById('reader');
+            const btn = document.getElementById('scanToggleBtn');
+
+            if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                html5QrcodeScanner.stop().then(() => {
+                    readerDiv.style.display = 'none';
+                    btn.innerText = "開啟相機鏡頭";
+                });
+            } else {
+                readerDiv.style.display = 'block';
+                btn.innerText = "關閉相機鏡頭";
+                
+                if(!html5QrcodeScanner) {
+                    html5QrcodeScanner = new Html5Qrcode("reader");
+                }
+                
+                html5QrcodeScanner.start(
+                    { facingMode: "environment" }, // 優先使用後置鏡頭
+                    { fps: 10, qrbox: 250 },
+                    onScanSuccess
+                ).catch(err => {
+                    alert("無法啟動相機，請確認瀏覽器相機權限已開啟。");
+                    readerDiv.style.display = 'none';
+                    btn.innerText = "開啟相機鏡頭";
+                });
+            }
+        };
+
+        // 🟢 成功掃描到顧客的二維碼
+        function onScanSuccess(decodedText, decodedResult) {
+            // 停止相機以節省效能
+            toggleScanner();
+            
+            currentScannedUID = decodedText;
+            document.getElementById('targetUID').innerText = currentScannedUID;
+            document.getElementById('resultBox').style.display = 'block';
+
+            // 前往 Firebase 查詢該顧客目前的狀態
+            const userRef = ref(db, `seatSystem/${currentScannedUID}`);
+            get(userRef).then((snapshot) => {
+                const data = snapshot.val();
+                const statusTxt = document.getElementById('statusTxt');
+                const actionArea = document.getElementById('actionArea');
+
+                if (data && data.status === "dining") {
+                    // 顧客目前是「已用餐」狀態 ➡️ 店員可操作「確認離開」
+                    statusTxt.innerText = "已用餐 (計時中)";
+                    statusTxt.className = "status-badge status-dining";
+                    actionArea.innerHTML = `<button class="btn-action-out" onclick="confirmLeave()">確認客人已離開 (重置網頁)</button>`;
+                } else {
+                    // 顧客目前是「未入座」狀態 ➡️ 店員可操作「確認入座」
+                    statusTxt.innerText = "未入座 / 待機中";
+                    statusTxt.className = "status-badge status-none";
+                    actionArea.innerHTML = `<button class="btn-action-in" onclick="confirmEnter()">確認顧客入座 (開始限時1.5小時)</button>`;
+                }
+            });
+        }
+
+        // 櫃檯點擊：確認入座
+        window.confirmEnter = function() {
+            if (!currentScannedUID) return;
+            const userRef = ref(db, `seatSystem/${currentScannedUID}`);
+            
+            set(userRef, {
+                status: "dining",
+                startTime: Date.now() // 寫入當前時間戳供倒數
+            }).then(() => {
+                alert("已成功確認入座，顧客手機已同步開始計時。");
+                document.getElementById('resultBox').style.display = 'none';
+            });
+        };
+
+        // 櫃檯點擊：確認離開 (重置)
+        window.confirmLeave = function() {
+            if (!currentScannedUID) return;
+            const userRef = ref(db, `seatSystem/${currentScannedUID}`);
+            
+            // 刪除該節點 ➡️ 顧客手機端收到 null 會立刻自動重置為待機二維碼
+            set(userRef, null).then(() => {
+                alert("已完成離店登記，顧客網頁已完全重置。");
+                document.getElementById('resultBox').style.display = 'none';
+            });
+        };
+    </script>
+</body>
+</html>
